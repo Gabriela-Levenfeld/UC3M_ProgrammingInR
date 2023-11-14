@@ -1,0 +1,1366 @@
+---
+title: "Programming in R"
+author: " Sofía Gianelli Nan, Gabriela Levenfeld Sabau and Miguel Díaz-Plaza Cabrera"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: yes
+    toc_depth: 6
+    keep_tex: yes
+  geometry: left=3cm,right=3cm,top=2cm,bottom=2cm
+  mathjax: local
+  self_contained: no
+  word_document:
+    toc: yes
+    toc_depth: '6'
+subtitle: General Homework
+font-family: Helvetica
+---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\pagebreak
+
+# Take a dataset
+
+The dataset has been extracted from Kaggle: <https://www.kaggle.com/datasets/iamsouravbanerjee/heart-attack-prediction-dataset/>
+
+This dataset provides a comprehensive array of features relevant to heart health and lifestyle choices, encompassing patient-specific details such as age, gender, cholesterol levels, blood pressure, heart rate, and indicators like diabetes, family history, smoking habits, obesity, and alcohol consumption. Additionally, lifestyle factors like exercise hours, dietary habits, stress levels, and sedentary hours are included. Medical aspects comprising previous heart problems, medication usage, and triglyceride levels are considered. Socioeconomic aspects such as income and geographical attributes like country, continent, and hemisphere are incorporated. The dataset, consisting of $8763$ records from patients around the globe, culminates in a crucial binary classification feature denoting the presence or absence of a heart attack risk, providing a comprehensive resource for predictive analysis and research in cardiovascular health.
+
+-   `Patient ID` - Unique identifier for each patient
+
+-   `Age` - Age of the patient
+
+-   `Sex` - Gender of the patient (Male/Female)
+
+-   `Cholesterol` - Cholesterol levels of the patient
+
+-   `Blood Pressure` - Blood pressure of the patient (systolic/diastolic)
+
+-   `Heart Rate` - Heart rate of the patient
+
+-   `Diabetes` - Whether the patient has diabetes (Yes/No)
+
+-   `Family History` - Family history of heart-related problems (1: Yes, 0: No)
+
+-   `Smoking` - Smoking status of the patient (1: Smoker, 0: Non-smoker)
+
+-   `Obesity` - Obesity status of the patient (1: Obese, 0: Not obese)
+
+-   `Alcohol Consumption` - Level of alcohol consumption by the patient (None/Light/Moderate/Heavy)
+
+-   `Exercise Hours Per Week` - Number of exercise hours per week
+
+-   `Diet` - Dietary habits of the patient (Healthy/Average/Unhealthy)
+
+-   `Previous Heart Problems` - Previous heart problems of the patient (1: Yes, 0: No)
+
+-   `Medication Use` - Medication usage by the patient (1: Yes, 0: No)
+
+-   `Stress Level` - Stress level reported by the patient (1-10)
+
+-   `Sedentary Hours Per Day` - Hours of sedentary activity per day
+
+-   `Income` - Income level of the patient
+
+-   `BMI` - Body Mass Index (BMI) of the patient
+
+-   `Triglycerides` - Triglyceride levels of the patient
+
+-   `Physical Activity Days Per Week` - Days of physical activity per week
+
+-   `Sleep Hours Per Day` - Hours of sleep per day
+
+-   `Country` - Country of the patient
+
+-   `Continent` - Continent where the patient resides
+
+-   `Hemisphere` - Hemisphere where the patient resides
+
+-   `Heart Attack Risk` - Presence of heart attack risk (1: Yes, 0: No)
+
+\pagebreak
+
+Before starting the project, we need to load some libraries in order to used them.
+
+```{r,message=FALSE,warning=FALSE}
+library(readxl)
+library(skimr)
+library(dplyr)
+library(knitr)
+library(DescTools)
+library(e1071)
+library(ggplot2)
+library(gmodels)
+library(reshape2)
+library(tidyr)
+library(corrplot)
+library(vcd)
+library(ggmosaic)
+```
+
+The first step is to import the dataset:
+
+```{r}
+data <- read_excel("heart_attack_prediction_dataset.xlsx")
+```
+
+```{r}
+# For knowing the data base
+summary(data)
+```
+
+Looking for missing (NA) values in the dataset. As the result is 0, then it means that there are no missing values (NA).
+
+```{r}
+# We check if there are any missing values (NA's) or not
+sum(is.na(data)==TRUE)
+```
+
+In order to obtain a more exhaustive analysis of the dataset, we are going to apply an Exploratory Data Analysis (EDA). For that, we are going to use the functions `skim()` and `str()` included in the `library(skimr)`.
+
+```{r}
+skim_without_charts(data)
+```
+
+```{r}
+str(data)
+```
+
+\pagebreak
+
+# Part 1: Make a basic descriptive study
+
+## (i) Frequency tables for at least two of the continuous variables.
+
+The first frequency table is Sleep Hours Per Day.
+
+```{r}
+# Create a frequency table for Sleep_Hours_Per_Day
+freq_table1 <- data %>%
+  group_by(Sleep_Hours_Per_Day) %>%
+  summarize(freq = n())
+
+# Displaying the first frequency table 
+kable(freq_table1, align = c("l", "c"), 
+      col.names = c("Sleep Hours Per Day", "Frequency"), 
+      caption = "Sleep Hours Per Day Frequency Table")
+```
+
+If we want to know how many hours per day sleeps women and men we do the following frequency table:
+
+```{r}
+# Create a frequency table for Sleep_Hours_Per_Day by sex
+freq_table2 <- data %>%
+  group_by(Sex) %>%
+  summarize("Average Sleep Hours Per Day" = round(mean(Sleep_Hours_Per_Day), 2))
+
+kable(freq_table2, align = c("l", "c"), caption = "Average Sleep Hours Per Day by Sex")
+```
+
+Now we can create a frequency table with the level of cholesterol by age
+
+```{r}
+# Define a interval
+breaks <- c(0,20,30,40,50,60,70,80,90,100)
+data <- data %>%
+  mutate(interval1 = cut(Age, breaks = breaks, right = FALSE))
+
+# Create a frequency table for Cholesterol by age
+freq_table3 <- data %>%
+  group_by(Age = interval1) %>%
+  summarise("Average Cholesterol" = round(mean(Cholesterol)))
+
+kable(freq_table3, align = c("l", "c"), caption = "Average Cholesterol by Age")
+```
+
+If we want to know the stress level by country
+
+```{r}
+# Create a frequency table for Stress level by country
+freq_table4 <- data %>%
+  group_by(Country) %>%
+  summarise("Average Stress Level" = round(mean(Stress_Level),1))
+kable(freq_table4, align = c("l", "c"), caption = "Average Strees Level by Country")
+```
+
+## (ii) Calculate measures of centrality, variability, and shape (skewness and kurtosis). Interpret results.
+
+To calculate measures of centrality we are going to calculate the mean, median and mode of two variables. Then, to calculate measures of variability we are going to find the standard deviation, variance and range of the same two variables. Finally, we will compute the skewness and kurtosis.
+
+  - **Sedentary Hours Per Day**
+
+This is a continuous variable.
+
+```{r}
+# Mean, median and mode
+
+mean_value1 <- round(mean(data$Sedentary_Hours_Per_Day),1)
+median_value1 <- round(median(data$Sedentary_Hours_Per_Day),1)
+
+measures_of_centrality1 <- data.frame(
+  Statistic = c("Mean of Sedentary Hours Per Day", "Median of Sedentary Hours Per Day"),
+  Value = c(mean_value1, median_value1)
+)
+
+kable(measures_of_centrality1, 
+      align = c("l", "c"), 
+      col.names = c("Statistic", "Value"), 
+      caption = "Measures of Centrality")
+```
+
+The average of sedentary hours per day is 6.0 and the median is 5.9, almost the same, this means that the distribution is almost symmetric.
+
+```{r}
+# Variance, standard deviation and range
+
+variance_value1 <- round(var(data$Sedentary_Hours_Per_Day),1)
+std_deviation_value1 <- round(sd(data$Sedentary_Hours_Per_Day),1)
+range_value1 <- round(max(data$Sedentary_Hours_Per_Day) 
+                      - min(data$Sedentary_Hours_Per_Day),1)
+
+
+measures_of_variability1 <- data.frame(
+  Statistic = c("Variance of Sedentary Hours Per Day", 
+                "Standard Deviation of Sedentary Hours Per Day",
+                "Range of Sedentary Hours Per Day"),
+  Value = c(variance_value1,std_deviation_value1, range_value1)
+)
+
+kable(measures_of_variability1, 
+      align = c("l", "c"), 
+      col.names = c("Statistic", "Value"), 
+      caption = "Measures of Variability")
+```
+
+The variance suggests that the data points are spread out a bit from the mean. The standard deviation is a measure of how much individual data points deviate from the mean, in this case the variability is small. 
+
+The range indicates the difference between the maximum and the minimum, this difference is 12 hours.
+
+```{r}
+# Skewness and kurtosis
+skewness_value1 <- round(skewness(data$Sedentary_Hours_Per_Day),1)
+kurtosis_value1 <- round(kurtosis(data$Sedentary_Hours_Per_Day),1)
+
+measures_of_shape1 <- data.frame(
+  Statistic = c("Skewness", "Kurtosis"),
+  Value = c(skewness_value1, kurtosis_value1)
+)
+
+kable(measures_of_shape1, 
+      align = c("l", "c"), 
+      col.names = c("Statistic", "Value"), 
+      caption = "Measures of Shape")
+```
+
+The skewness is zero, this means that this distribution is approximately symmetrical. And the negative kurtosis means that the data has fewer extreme values and fewer outliers. In this case, we can affirm that the values of sedentary hours is concentrated near the mean with hardly any extreme values.
+
+```{r}
+hist(data$Sedentary_Hours_Per_Day, 
+     main = paste("Histogram of Sedentary Hours Per Day"), 
+     xlab = "Sedentary hours per day", col = "pink")
+```
+The histogram shows that the distribution is almost symmetric.
+
+  - **Heart rate**
+
+This variable only takes integer values.
+
+```{r}
+#Mean, median and mode
+
+mean_heartRate <- round(mean(data$Heart_Rate),1)
+median_heartRate <- round(median(data$Heart_Rate),1)
+mode_heartRate <- round(Mode(data$Heart_Rate),1)
+
+centrality_heartRate <- data.frame(
+  Statistic = c("Mean of Heart Rate", "Median of Heart Rate", "Mode of Heart Rate"),
+  Value = c(mean_heartRate, median_heartRate, mode_heartRate)
+)
+
+kable(centrality_heartRate, 
+      align = c("l", "c"), 
+      col.names = c("Statistic", "Value"), 
+      caption = "Measures of Centrality")
+```
+
+```{r}
+#Variance, standard deviation and range
+
+variance_heartRate <- round(var(data$Heart_Rate),1)
+std_deviation_heartRate <- round(sd(data$Heart_Rate),1)
+range_heartRate <- round(max(data$Heart_Rate) - min(data$Heart_Rate),1)
+
+
+variability_heartRate <- data.frame(
+  Statistic = c("Variance of Heart Rate"
+                , "Standard Deviation of Heart Rate"
+                , "Range of Heart Rate"),
+  Value = c(variance_heartRate,
+            std_deviation_heartRate, 
+            range_heartRate)
+)
+
+kable(variability_heartRate, 
+      align = c("l", "c"), 
+      col.names = c("Statistic", "Value"), 
+      caption = "Measures of Variability")
+```
+
+This variable has a large variance, so the data is considerably spread around the mean. Also, we can conclude that most of heart rate values are typically around 20.6 beats per minute far from the mean heart rate. Finally, the difference between the maximum heart rate and the minimum is 70.0 beats per minute.
+
+```{r}
+# Skewness and kurtosis
+skewness_heartRate <- round(skewness(data$Heart_Rate),1)
+kurtosis_heartRate <- round(kurtosis(data$Heart_Rate),1)
+
+shape_heartRate <- data.frame(
+  Statistic = c("Skewness", "Kurtosis"),
+  Value = c(skewness_heartRate, kurtosis_heartRate)
+)
+
+kable(shape_heartRate, 
+      align = c("l", "c"), 
+      col.names = c("Statistic", "Value"), 
+      caption = "Measures of Shape")
+```
+
+The skewness and kurtosis is the same as the previous variable, so we can assume the same affirmation as before.
+
+```{r}
+hist(data$Heart_Rate, 
+     main = paste("Histogram of Heart Rate"),
+     xlab = "Heart Rate", col = "lightgreen")
+```
+This histogram appears to be symmetric despite the value of 40 beats per minute.
+
+## (iii) Take one of the categorical variables and create groups based on it.
+
+We decide to compare different variables by sex. The first variable to analyze by sex is the **Stress Level**.
+
+```{r III_summary_sex}
+summary_sex <- data %>%
+  group_by(Sex) %>%
+  summarise(
+    Mean = round(mean(Stress_Level),1),
+    Median = round(median(Stress_Level),1),
+    SD = round(sd(Stress_Level),1),
+    Min = round(min(Stress_Level),1),
+    Max = round(max(Stress_Level),1)
+  )
+
+kable(summary_sex, align = c("l", "c", "c", "c", "c", "c"),
+      col.names = c("Sex", "Mean"
+                    , "Median" , "Standard Deviation", 
+                    "Minimum", "Maximum"), 
+      caption = "Stress Level by Sex")
+
+```
+
+```{r warning=FALSE}
+data_sex <- data %>%
+  group_by(Sex) %>%
+  summarise(
+    Mean = round(mean(Stress_Level), 1)
+  )
+sex <- melt(data_sex, id.vars = "Sex", measure.vars = "Mean")
+
+# Define custom colors and labels
+my_colors <- c("#ADD8E6", "#FFB6C1")
+my_labels <- c("Male", "Female")
+
+ggplot(sex, aes(x = variable, y = value, fill = Sex)) + 
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_label(aes(y = value, label = round(value, 2), 
+                 accuracy = 0.1), 
+             position = position_dodge(width = 0.9), 
+             show.legend = FALSE) +
+  scale_fill_manual(values = my_colors, 
+                    labels = my_labels) +
+  theme(legend.position = "right")
+```
+
+As we can see, stress level by sex, present data quite similar. The mean of each group is $5.6$ (male) and $5.4$ (female). Overall, these summary provide insights into the stress levels of the two gender groups. Both groups present similar results in each parameters, suggesting that, on average, their stress levels are close.
+
+Furthermore, we are going to make a p-test to determine if the differences are significant or if there are any patterns or relationships between gender and stress levels in the dataset we have chosen.
+
+```{r III_ptest_sex_1}
+# Create a vector for male and another for female
+Stress_Male <- data %>%
+  filter(Sex == "Male") %>%
+  select(Stress_Level) %>%
+  unlist()
+
+Stress_Female <- data %>%
+  filter(Sex == "Female") %>%
+  select(Stress_Level) %>%
+  unlist()
+
+# Perform an independent two-sample t-test
+t_test_result_1 <- t.test(x=Stress_Male,
+                          y=Stress_Female, 
+                          alternative="two.sided", 
+                          var.equal = TRUE, 
+                          paired = FALSE)
+
+# Print the t-test result
+print(t_test_result_1)
+```
+
+Formulating a hypothesis test with $H_0: \mu_{male} = \mu_{female}$ and an alternative hypothesis $H_1: \mu_{male} \neq \mu_{female}$ we can see if this difference is signficative. The p-value of this test is $=0.04096$ which is $< \alpha$ so we have enough evidence to reject $H_0$ and conclude that the means calculated before are signficative.
+
+Then, we compare the leveles of **Cholesterol** between female and male.
+
+```{r}
+data_sex <- data %>%
+  group_by(Sex) %>%
+  summarise(
+    Mean = round(mean(Cholesterol), 1)
+  )
+sex <- melt(data_sex, id.vars = "Sex", measure.vars = "Mean")
+
+# Define custom colors and labels
+my_colors <- c("#ADD8E6", "#FFB6C1")
+my_labels <- c("Male", "Female")
+
+ggplot(sex, aes(x = variable, y = value, fill = Sex)) + 
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_label(aes(y = value, 
+                 label = round(value, 2), accuracy = 0.1), 
+             position = position_dodge(width = 0.9), 
+             show.legend = FALSE) +
+  scale_fill_manual(values = my_colors, labels = my_labels) +
+  theme(legend.position = "right")
+
+```
+
+```{r III_ptest_sex_2}
+# Create a vector for male and another for female
+Cholesterol_Male <- data %>%
+  filter(Sex == "Male") %>%
+  select(Cholesterol) %>%
+  unlist()
+
+Cholesterol_Female <- data %>%
+  filter(Sex == "Female") %>%
+  select(Cholesterol) %>%
+  unlist()
+
+# Perform an independent two-sample t-test
+t_test_result_2 <- t.test(x=Cholesterol_Male,
+                          y=Cholesterol_Female, 
+                          alternative="two.sided", 
+                          var.equal = TRUE, 
+                          paired = FALSE)
+
+# Print the t-test result
+print(t_test_result_2)
+```
+
+If we formulate a new hypothesis test with $H_0: \mu_{male} = \mu_{female}$ and an alternative hypothesis $H_1: \mu_{male} \neq \mu_{female}$ we can see if this difference is signficative. The p-value of this test is $=0.4761$ which is $> \alpha$ so we have enough evidence to not reject $H_0$ and conclude that the means calculated before aren't signficative.
+
+Let's see what happens with some other variables from the dataset.
+
+```{r III_summary_vars}
+# Find the totals
+total_smokers <- sum(data$Smoking)
+total_diabetes <- sum(data$Diabetes)
+total_familyhistory <- sum(data$Family_History)
+total_obesity <- sum(data$Obesity)
+total_alcohol <- sum(data$Alcohol_Consumption)
+total_previousheartrisk <- sum(data$Heart_Attack_Risk)
+total_medicate <- sum(data$Medication_Use)
+
+# Separate female and male
+female_smokers <- sum(data$Smoking[data$Sex == "Female"])
+female_diabetes <- sum(data$Diabetes[data$Sex == "Female"])
+female_familyhistory <- sum(data$Family_History[data$Sex == "Female"])
+female_obesity <- sum(data$Obesity[data$Sex == "Female"])
+female_alcohol <- sum(data$Alcohol_Consumption[data$Sex == "Female"])
+female_previousheartrisk <- sum(data$Heart_Attack_Risk[data$Sex == "Female"])
+female_medicate <- sum(data$Medication_Use[data$Sex == "Female"])
+
+male_smokers <- sum(data$Smoking[data$Sex == "Male"])
+male_diabetes <- sum(data$Diabetes[data$Sex == "Male"])
+male_familyhistory <- sum(data$Family_History[data$Sex == "Male"])
+male_obesity <- sum(data$Obesity[data$Sex == "Male"])
+male_alcohol <- sum(data$Alcohol_Consumption[data$Sex == "Male"])
+male_previousheartrisk <- sum(data$Heart_Attack_Risk[data$Sex == "Male"])
+male_medicate<- sum(data$Medication_Use[data$Sex == "Male"])
+
+total_female <- sum(data$Sex == "Female")
+total_male <- sum(data$Sex == "Male")
+
+# Create a data frame to display the percentages
+percentages <- data.frame(
+  Gender = c("Female", "Male"),
+  Smoker_Percentage = c(round(female_smokers / total_female * 100, 1), 
+                        round(male_smokers / total_male * 100, 1)),
+  Diabetes_Percentage = c(round(female_diabetes / total_female * 100, 1), 
+                          round(male_diabetes / total_male * 100, 1)),
+  Familyhistory_Percentage = c(round(female_familyhistory / total_female * 100, 1), 
+                               round(male_familyhistory / total_male * 100, 1)),
+  Obesity_Percentage = c(round(female_obesity / total_female * 100, 1), 
+                         round(male_obesity / total_male * 100, 1)),
+  
+  Alcohol_Percentage = c(round(female_alcohol / total_female * 100, 1), 
+                         round(male_alcohol / total_male * 100, 1)),
+  Previousheartrisk_Percentage = 
+    c(round(female_previousheartrisk / total_female * 100, 1), 
+      
+                                   round(male_previousheartrisk / total_male * 100, 1)),
+  Medicate_Percentage = c(round(female_medicate / total_female * 100, 1), 
+                          round(male_medicate / total_male * 100, 1)))
+
+# Print the table
+kable(percentages, 
+      align = "c", 
+      col.names = c("Gender", "Smoker (%)", 
+                    "Diabetes (%)", "Family History (%)",
+                    "Obesity (%)", "Alcohol (%)", 
+                    "Previous Heart Risk (%)", "Medicated (%)"))
+
+```
+
+With the previous table, we can compare the quantity of female and male which smokes, have diabetes, have family history of heart attack, have obesity, consume alcohol, had previous heart risk or are medicated. In general, the male have worst health condition than the female, they have more proportion of smokers, diabetes and obesity disease, family history with heart conditions, consumption of alcohol, and previous heart risk. Additionally, the female takes more medication than the male.
+
+## (iv) For the continuous variables: make histograms, density plots, normal probability plots (QQ), box plots and other ones as you may consider. Discuss the normality of data based on graphs.
+
+  - **Histogram**
+
+```{r}
+# Histogram
+hist(data$BMI,col="brown",main="",xlab="BMI")
+```
+
+  - **Density Plot**
+
+```{r}
+#Density Plot
+ggplot(data, aes(x = Exercise_Hours_Per_Week)) +
+  geom_density(aes(fill = "pink"), alpha = 0.5) +
+  labs(title = "Density Plot of Exercise Hours Per Week",
+       x = "Exercise Hours Per Week",
+       y = "Density") +
+  theme_minimal() +
+coord_cartesian(xlim = c(-5, 25))
+```
+
+  - **Normal probability plots (QQ)**
+
+```{r}
+#QQ plots
+par(mfrow=c(3, 3))  # Split the graphic area in 1 row and 3 columns
+qqnorm(data$Exercise_Hours_Per_Week, main="Exercise Hours Per Week", col = "#EED5B7")
+qqnorm(data$Sleep_Hours_Per_Day, main="Sleep Hours Per Day", col = "#66CDAA")
+qqnorm(data$Sedentary_Hours_Per_Day, main="Sedentary Hours Per Day", col = "#8B6969")
+qqnorm(data$Cholesterol, main="Cholesterol", col = "#A2CD5A")
+qqnorm(data$Triglycerides, main="Triglycerides", col = "#CD6600")
+qqnorm(data$Stress_Level, main="Stress Level", col = "#9BCD9B")
+qqnorm(data$Heart_Rate, main="Heart Rate", col = "#FFA07A")
+qqnorm(data$Physical_Activity_Days_Per_Week, 
+       main="Physical Activity Days Per Week", 
+       col = "#AB82FF")
+qqnorm(data$Income, main="Income", col = "#EEAEEE")
+par(mfrow=c(3, 3))
+```
+
+Looking at the graphs, we can conclude that Sleep Hours Per Day, Stress Level and Physical Activity Days Per Week are discrete variables. Meanwhile, Exercise Hours Per Week, Sedentary Hours Per Day, Cholesterol, Triglycerides, Heart Rate and Income are continuous variables.
+
+  - **Box plots**
+
+```{r warning=FALSE}
+#Box plots
+qplot(data$Continent, 
+      data$Sedentary_Hours_Per_Day, 
+      geom="boxplot", 
+      fill = data$Continent, 
+      xlab = "Continents", 
+      ylab = "Sedentary Hours Per Day")
+```
+
+  - **Joint Plot**
+
+```{r,warning=FALSE,message=FALSE}
+#Joint plot
+data %>%
+  group_by(Continent, interval1) %>%
+  summarize(MeanExerciseHrsPerWeek = mean(Exercise_Hours_Per_Week)) %>%
+  ggplot(aes(x = interval1, 
+             y = MeanExerciseHrsPerWeek, 
+             color = Continent, 
+             group = Continent)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Average Exercise Hours Per Week by Age", 
+       x = "Age", 
+       y = "Average Exercise Hours Per Week") +
+  theme_classic()
+```
+
+  - **Violin Plot**
+
+```{r}
+#Violin plot
+qplot(Continent, 
+      Cholesterol, 
+      data = data, 
+      geom="violin", 
+      fill = Continent) +coord_cartesian(ylim = c(120,400)) 
+#ylim is the range of variable cholesterol
+```
+
+
+   - **Study normality based on graphs**
+
+We made it with the package GGally.
+
+```{r,message=FALSE,warning=FALSE,error=FALSE}
+# Reduced data, random sample
+data_red<-data[sample(nrow(data),100),]
+# We draw the scatter plot of the continuous variables to check normality
+library(GGally)
+ggpairs(data_red[,c(4,6,12,17,18,19,20,21,22)],aes(fill="pink"),
+        lower = list(continuous = "points"),
+        title = "Scatter Plot Matrix") +
+  theme_light(base_size=8)
+
+```
+
+Every variable seems normal. If any variable wasn't normal (present assymetry), we should apply logarithms.
+
+
+  - **Correlation matrix**
+
+With the package `library(corrplot)`.
+
+```{r,warning=FALSE}
+# Compute the correlation matrix
+correlation_matrix=cor(data[,c(4,6,12,17,18,19,20,21,22)])
+# We represent it 
+par(cex = 0.6) #adjust the size of the graph before you create it
+corrplot(correlation_matrix, 
+         type = "upper", 
+         tl.col = "darkgrey", 
+         tl.srt = 45, 
+         method = "color", 
+         addCoef.col = "black", 
+         addCoefasPercent = FALSE, diag = FALSE)
+```
+
+## (v) Then, repeat the previous plots for each group studied in (iii) and compare the results among them.
+
+  - **Histograms by Sex**
+
+```{r}
+# Histograms
+ggplot(data, aes(x = BMI)) +
+  geom_histogram(binwidth = 2, aes(fill = Sex), alpha = 0.5) +
+  labs(title = "Histogram of BMI",
+       x = "BMI",
+       y = "Frequency") +
+  facet_grid(Sex ~ .)
+```
+
+The body mass index (BMI) values are generally higher for males than for females. The major BMI for females is below 300, whereas for males, it typically exceeds 500
+
+  - **Density Plots by Sex**
+
+```{r}
+#Density Plots
+ggplot(data, aes(x = Exercise_Hours_Per_Week)) +
+  geom_density(aes(group = Sex, colour = Sex, fill = Sex), alpha = 0.1) +
+  labs(title = "Density Plot of Exercise Hours Per Week",
+       x = "Exercise Hours Per Week",
+       y = "Density")
+```
+
+Observing the graph above, we can conclude that both density are similar to a normal distribution, and there aren't significative difference between female and male.
+
+  - **Box plots by Sex**
+
+```{r}
+#Box plots
+Box_plot2 <- ggplot(rbind(data[data$Sex == "Female", ], data[data$Sex == "Male", ]), 
+                    aes(x = Continent, 
+                        y = Sedentary_Hours_Per_Day, 
+                        fill = Continent)) +
+  geom_boxplot() +
+  labs(title = "Sedentary Hours Per Day by Continent",
+       x = "Continents",
+       y = "Sedentary Hours Per Day") +
+  facet_wrap(~Sex)
+
+Box_plot2 <- Box_plot2 + theme(axis.text.x = element_text(size = 5))
+print(Box_plot2)
+```
+
+In the next conclusion we will focus on the difference between female and male in each continent. In Africa, Europe and North America the mean of sedentary hours per day is slightly greater for male than for female. Meanwhile, in Australia and South America the mean of sedentary hours per day is minor for male than for female. Visually, there doesn't appear to be a significant difference between females and males in Asia.
+
+  - **Joint Plot by Sex**
+
+```{r,warning=FALSE,message=FALSE}
+#Joint plot
+joint_data <- data %>%
+  group_by(Sex, Continent, interval1) %>%
+  summarize(MeanExerciseHrsPerWeek = mean(Exercise_Hours_Per_Week))
+
+joint_plot <- ggplot(joint_data, aes(x = interval1, 
+                                     y = MeanExerciseHrsPerWeek,
+                                     color = Continent, 
+                                     group = Continent)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Average Exercise Hours Per Week by Age", 
+       x = "Age", 
+       y = "Average Exercise Hours Per Week") +
+  facet_wrap(~Sex) +
+  theme_classic()
+joint_plot <- joint_plot + theme(axis.text.x = element_text(size = 6))
+print(joint_plot)
+```
+
+The initial observation from the graph above is that there is more dispersion between continents within each age interval for females compared to males. Additionally, there is more dispersion among age intervals for females than for males.
+
+  - **Violin Plot by Sex**
+
+```{r}
+#Violin plots
+violin_plots <- qplot(Continent, Cholesterol, 
+                      data = data, 
+                      geom = "violin", 
+                      fill = Continent) +
+  coord_cartesian(ylim = c(120, 400)) +
+  facet_wrap(~Sex)
+violin_plots <- violin_plots + theme(axis.text.x = element_text(size = 5))
+print(violin_plots)
+```
+
+This graph is not so precise so we can conclude that there is not significative difference for the variable cholesterol between female and male in each continent.
+
+## (vi) Take a categorical variable and show the frequency table. Take two categorical variables and show the descriptive contingency table. Make mosaic plots and explain the results.
+
+We'll take Diet as a categorical variable
+
+```{r}
+freq_table5 <- data %>%
+  group_by(Diet) %>%
+  summarise(Frequency = n()) 
+kable(freq_table5, align = c("l", "c"), col.names = c("Diet", "Frequency"))
+```
+
+Now we are going to show the **contingency table** between Diet and Continent.
+
+```{r}
+contingency_table <- xtabs(~ Continent + Diet, data)
+contingency_table <- addmargins(contingency_table)
+rownames(contingency_table)[nrow(contingency_table)] <- "Total"
+colnames(contingency_table)[ncol(contingency_table)] <- "Total"
+kable(contingency_table, align = "c")
+```
+
+  - **Mosaic plot**
+
+```{r warning=FALSE}
+#Mosaic Plot for Diet and Continent
+ggplot(data = data) +
+  geom_mosaic(aes(x = product(Continent, Diet), fill=Continent)) + 
+  labs(title="Mosaic Plot: Diet vs Continent") 
+```
+
+Note that Asia and Europe are the continent with more observations. Furthermore, we can comment the diet inside each continent: Inside South America and Europe the major part of the observation follows a healthy diet. In North America, Australia, Africa and Asia the majority follows an average diet.
+
+If we want to see the **contingency table** of Diet and Sex:
+
+```{r}
+contingency_table2 <- xtabs(~ Sex + Diet, data)
+contingency_table2 <- addmargins(contingency_table2)
+rownames(contingency_table2)[nrow(contingency_table2)] <- "Total"
+colnames(contingency_table2)[ncol(contingency_table2)] <- "Total"
+kable(contingency_table2, align = "c")
+```
+
+  - **Mosaic plot**
+
+```{r warning=FALSE}
+#Mosaic Plot for Diet and Sex
+ggplot(data = data) +
+  geom_mosaic(aes(x = product(Sex, Diet), fill=Sex)) + 
+  labs(title="Mosaic Plot: Diet vs Sex")
+
+```
+
+Observing the graph we can deduce that there is more males than females. If we observe the diet for each sex we deduce that is more female following an unhealthy diet than average or healthy diet. Additionally, For the male the diet distribution is the opposite, there are more males following an average diet than healthy or unhealthy.
+
+In conclusion, it is evident that more people are inclined to follow an average or healthy diet rather than an unhealthy one.
+
+\pagebreak
+
+# Part 2: Apply caret library.
+
+The second part of the project consists on using the **Caret** library, which it is a package used for creating predictive models.
+
+## Selecting a dichotomic target variable
+
+Firstly, it is necessary to load the library we are going to deal with and some other libraries I consider fundamental to perform the exercise.
+
+```{r message=FALSE,warning=FALSE}
+library(caret)
+library(fastDummies)
+library(randomForest)
+```
+
+As a reminder, the structure of the dataset we are working with is shown below.
+
+```{r read_data}
+df <- read_excel("heart_attack_prediction_dataset.xlsx")
+str(df)
+```
+
+With this information, we have concluded that a good categorical and dichotomic variable is the **Heart.Attack.Risk**. So this is the one parameter that we are going to predict and analyze the relationships with other variables.
+
+## Data preprocessing
+
+In this section, we must prepare the dataset in order to use it for the machine learning model. This means handling missing data, deleting unnecessary information, encoding categorical variables and splitting the data.
+
+### 1. Handling missing data.
+
+From the begging of the project, we know that we do not have any missing value, so this is not a problem to us and we can skip this section.
+
+
+### 2. Deleting unnecessary information.
+
+The structure of the dataframe presented above indicates that some features (variables) can be omitted for this specific situation. The main reason is that they do not provide any relevant information. Therefore, the following parameters will be removed: Patient_ID, Income, Country, Hemisphere, Blood_Pressure, Family_History, Medication_Use and Triglycerides.
+
+```{r preprocessing_removingParams}
+df<-df[,-c(1,18,23,25,5,8,15,20)]
+```
+
+### 3. Encoding categorical variables.
+
+In this step, we address the encoding of categorical variables. We currently have 18 variables in the dataframe, and our goal is to convert the categorical ones ('Sex', 'Diet' and 'Country') into binary variables. To do so, we will apply the *One Hot Encoding* technique. This technique transforms categorical data into binary vectors, making them suitable for machine learning algorithms.
+
+```{r preprocessing_encoding}
+df <- dummy_cols(df,select_columns = c('Sex','Diet','Continent'))
+df <- df[, !(names(df) %in% c('Sex','Diet', 'Continent'))]
+
+df$Continent_North_America <- df$`Continent_North America`
+df$Continent_South_America <- df$`Continent_South America`
+df <- df[, !names(df) %in% c('Continent_North America', 'Continent_South America')]
+
+df$Heart_Attack_Risk <- as.factor(df$Heart_Attack_Risk)
+```
+
+### 4. Standarization.
+
+On our current dataframe, we encounter variables like *Age*, *Cholesterol*, ... with a diverse range of values. In this section, our aim is to convert all the numeric variables within a consistent range, between 0 and 1. This process enhances the performance of our machine learning model which will be more robust and efficient.
+
+```{r message=FALSE}
+preProcess_range_model = preProcess(df, method='range')
+df = predict(preProcess_range_model, newdata = df)
+apply(df[], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
+```
+
+### 5. Splitting the data.
+
+In the final step of our data preprocessing, in order to do our machine learning model, we split the data into training (containing 80% of the dataset) and test (20% of the dataset). The training set allows the model to learn the essential insights and generalize from the data available. On the other hand, the test set allows us to prove model's accuracy and verify how well the model can make predictions on unseen data. In practice, the dataset is usually divided into three parts: train, test and validation. However since we are not working with a big amount of data we can omit the validation set.
+
+```{r preprocessing_split}
+set.seed(123)
+
+n_train <- floor(0.8*nrow(df))
+n_test <- nrow(df)-n_train
+Train <- sample(1:nrow(df),n_train)
+Test <- (1:nrow(df))[-Train]
+trainData <- df[Train,]
+testData <- df[Test,]
+```
+
+After completely the data preprocessing, our dataset is now properly prepared for the application of our machine learning model.
+
+\newpage
+
+## Select predictors
+
+### Principal Component Analysis (PCA)
+
+The purpose is to choose the variables that might be more important in order to predict if someone is going to suffer a heart attack.
+
+However, in order to select predictors, we can reduce dimensions by computing another variables (components) that summarize the variability of the predictors. This is called Principal Component Analysis (PCA).
+
+We can implement it in R with this two libraries: `library(FactoMineR)` and `library(factoextra)`. If our data was not already standardized, FactorMineR automatically standardizes the data.
+
+```{r,warning=FALSE,message=FALSE}
+library(FactoMineR)
+library(factoextra)
+library(corrplot)
+```
+
+We remove the target variable (Heart_Attack_Risk) to apply PCA. 
+
+```{r}
+df_PCA<-df[,-15]
+```
+
+
+```{r}
+# PCA with FactorMineR
+# This function, by default, only considers 5 dimensions 
+# (i.e. 5 PCs) in the results. 
+# That can be changed in the ncp argument
+PCA<-PCA(df_PCA, graph = F)
+PCA$var$cor
+```
+
+
+$PC1$ explains very well `Smoking` and `Sex.Male` as they have positive coefficients near to $1$.`Sex.Female` has a big importance but negatively to PC1.
+
+Here we can see the importance of the variables to the first two PC's:
+
+```{r}
+fviz_pca_var(PCA,col.var="cos2",repel=T)
+```
+
+We calculate the variability explained by the PC's.
+
+```{r}
+# Explained variance and cummulative explained variance
+eig.val<-get_eigenvalue(PCA);eig.val
+mean(eig.val[,1])
+
+# SCREE PLOT
+fviz_eig(PCA,addlabels=TRUE)
+```
+
+As we can see, PC1 and PC2 only explained $15.73%$ of the total variability, which is very poor. We need $17$ PC's, which is almost all of the variables, to reach more than $80%$ of the variability; so is not worth it to take principal components in this case.
+
+\pagebreak
+
+## Models
+
+In this section, the aim is to evaluate the performance of different classification models for the binary classification task we are deal with. For each of these techniques, we will also compute the confusion matrix, a tool which will indicate us how many instances were correctly classified and how many were misclassified.
+Our task attempts to estimate if an individual has risk of experiencing a heart attack or not based on various independent variables such as age, cholesterol levels, and the presence of diabetes, among others.
+
+### Logistic Regression
+
+This method is usually used for binary classification tasks such as our case. It estimates the probability that the dependent variable (*Heart_Attack_Risk*) falls into one of the two categories based on the values of the independent variables (e.g., *Age*, *Cholesterol*, *Diabetes*, etc.).
+
+```{r }
+fit_har_lr <- glm(Heart_Attack_Risk~.,data=trainData,family=binomial)
+summary(fit_har_lr)
+```
+
+-   The p-value indicate the statistical significance of each predictor variable. As we can see, just the *Diabetes* feature has a significant impact on the outcome.
+
+-   Fisher Scoring iterations, indicate the number of iterations used to estimate the model parameters.
+
+-   Value of the  logistic regression coefficient is: $R^2=\frac{\text{Residual deviance}}{\text{Null deviance}}=\frac{9120.4}{9145.2}=0.9972882$.
+
+Next we are going to train our data with the logistic regression model.
+
+```{r }
+true_type <- as.matrix(testData[,15])
+predict_har_lr_test <- predict.glm(fit_har_lr,newdata=testData[,-15],type="response")
+ggplot(testData,aes(x=1:n_test,y=predict_har_lr_test,color=Heart_Attack_Risk)) + 
+  theme_light(base_size=8) +
+  geom_point(size=1) + 
+  scale_color_manual(values=c("deepskyblue2","firebrick2")) +
+  xlab("Individual") +
+  ylab("Probability of default with logistic regression") + 
+  geom_hline(yintercept=0.5)
+```
+
+The chart shows that all probabilities of default are below 0.5, and there are no points above 0.5. This suggest that the model is predicting that all individuals belong to the compliant class which clearly indicate that our model it is overfitting.
+
+After training our model, the next step is to evaluate its performance. To do so, we are going to obtain the confusion matrix. The goal is to compare the predictions made by the logistic regression model with the true values and quantify the errors made in the test sample.
+
+```{r }
+predict_har_lr_bin <- character(length=nrow(testData))
+predict_har_lr_bin[predict_har_lr_test>0.5] <- "Yes"
+predict_har_lr_bin[predict_har_lr_test<=0.5] <- "No"
+addmargins(table(predict_har_lr_bin,testData$Heart_Attack_Risk))
+```
+If we analysed the confusion matrix we can conclude:
+
+-   1) The model incorrectly classified 629 instances as "Yes" (1) when they were actually "No" (0).
+-   2) And it correctly classified 1124 points.
+
+```{r }
+predict_har_lr_bin<-as.factor(predict_har_lr_bin)
+predict_har_lr_bin<-as.numeric(predict_har_lr_bin)
+1-sum(predict_har_lr_bin!=testData$Heart_Attack_Risk)/n_test
+```
+
+The **test error rate** is $0.3588135$, which means that 35.88% of the cases in the test dataset are predicted incorrectly by the model. So this is not a model with a big accuracy.
+
+
+### Linear Classifier
+
+A linear classifier is a model that makes a decision to categories a set of data points to a discrete class based on a linear combination of its explanatory variables.
+The technique used for this purpose is called *Linear Discriminant Analysis* (LDA).
+
+```{r warning=FALSE, echo=FALSE,message=FALSE}
+library(MASS)
+fit_har_lda <- lda(Heart_Attack_Risk~.,data=trainData)
+fit_har_lda
+```
+
+The prior probabilities are 0.6419401 (class 0) and 0.3580599 (class 1). This information tell us that Class 0 is more prevalent in the training data, as it has a higher prior probability compared to Class 1.
+
+```{r }
+predict_har_lda_test <- predict(fit_har_lda,testData[,-15])
+ggplot(testData,aes(x=1:n_test,
+                y=predict_har_lda_test$posterior[,2],
+                color=Heart_Attack_Risk)) + 
+  theme_light(base_size=8) +
+  geom_point(size=1) + 
+  scale_color_manual(values=c("deepskyblue2","firebrick2")) +
+  xlab("Individual") +
+  ylab("Probability of default with linear classifier") +
+  geom_hline(yintercept=0.5)
+```
+
+```{r }
+addmargins(table(predict_har_lda_test$class,testData$Heart_Attack_Risk))
+```
+
+```{r }
+sum(predict_har_lda_test$class!=testData$Heart_Attack_Risk)/n_test
+```
+
+In the same manner as before, we follow the same structure. First, we obtain the default probabilities and then constructed the confusion matrix. The result obtained with this technique are: 
+
+-   The model made 1124 correct predictions. In particular, it can be seen how the model tends to predict well those outcomes where there is no risk for the patient to suffer a heart attack (value = 0).
+
+-   On the other hand, the model predict 629 times wrong.
+
+-   The **test error rate** is $0.3588135$, which means that around 35.88% of the cases in the test dataset are predicted incorrectly by the model.
+
+Hence, it indicates that the model is making incorrect predictions for a significant portion of the test data. However present similar results to the previous model with logistic regression.
+
+### Naive Bayes classifier
+
+This is a supervised machine learning technique also used for classification tasks.
+For this purpose, we will use the `naiveBayes` function with the training sample.
+
+```{r warning=FALSE, echo=FALSE}
+library(e1071)
+fit_har <- naiveBayes(Heart_Attack_Risk~.,data=trainData)
+fit_har
+```
+
+As we can see the prior probabilities are $0.6419401$ for no risk of having a heart attack (value = 0) and $0.3580599$ for having risk for a heart attack. In addition, we have different tables for each of the predictor. Let's analyzed the first situation which is for the *Age* variable. In this case,
+
+-   Y = 0 (**not having risk for a heart attack**) the mean is $0.4969475$ and the standard deviation is $0.2931761$
+
+-   Y = 1 (**having risk for a heart attack**) the mean is $0.4972112 $ and the standard deviation is $0.2961485$
+
+```{r }
+contrasts(trainData$Heart_Attack_Risk)
+contrasts(testData$Heart_Attack_Risk)
+```
+
+
+```{r }
+predict_har_test <- predict(fit_har,as.matrix(testData[,-15]),type="raw")
+true_type <- as.matrix(testData[,15])
+ggplot(testData,aes(x=1:n_test,y=predict_har_test[,2],color=true_type)) + 
+  theme_light(base_size=8) +
+  geom_point(size=1) + 
+  scale_color_manual(values=c("deepskyblue2","firebrick2")) +
+  xlab("Individual") +
+  ylab("Probability of default with Naive Bayes classifier") +
+  geom_hline(yintercept=0.5)
+```
+
+The plot shows that most probabilities of default are below 0.5. Indeed the points are scattered and mixed, so clearly our model it is not performance well in distinguishing between the two options.
+
+After training our model, the next step is to evaluate its performance with the confusion matrix.
+
+```{r }
+predict_har_test_type <- predict(fit_har,as.matrix(testData[,-15]),type="class")
+addmargins(table(predict_har_test_type,true_type))
+```
+
+```{r }
+sum(predict_har_test_type!=true_type)/n_test
+```
+
+The result obtained with this technique are: 
+
+-   The model made 1098 correct predictions. Which is the sum of 1073 (which is the number of times the model predicts that someone is at risk of having a heart attack and is true) plus 25, the times where the model predicts that someone is at no risk of having a heart attack and is true.
+
+-   On the other hand, the model predict 655 times wrong.
+
+-   The **test error rate** is $0.3736452$, which means that around 37.36% of the cases in the test dataset are predicted incorrectly by the model.
+
+Hence, it indicates that the model is making incorrect predictions for a significant portion of the test data.
+
+### Ensemble model
+
+Ensemble modeling is a methodology that leverages the predictions of multiple individual models in order to enhance overall predictive accuracy. Often we can achieve better results combining the strengths of different models than with a single model.
+
+
+```{r message=FALSE, warning=FALSE}
+library(caretEnsemble)
+
+trainControl2 = trainControl(
+  method = 'cv',
+  number = 2,
+  savePredictions = 'final',
+  classProbs=TRUE)
+
+
+levels(trainData$Heart_Attack_Risk) <- make.names(levels(trainData$Heart_Attack_Risk))
+algorithmList = c('glm', 'lda') 
+models = caretList(Heart_Attack_Risk~ ., 
+                   data=trainData, 
+                   trControl=trainControl2, methodList=algorithmList)
+results = resamples(models)
+summary(results)
+```
+
+```{r ensamble_plots}
+# Box plots to compare models
+scales = list(x=list(relation="free"), y=list(relation="free"))
+bwplot(results, scales=scales)
+```
+
+From this firsts results, we can say:
+-   **Accuracy**. Both models present similar values, so they are working similarly at making the correct predictions.
+-   **Kappa**. Measure the agreement between the model's predictions and random chance. Both values are close to zero which might represent that the models are struggling to capture meaningful patterns in the data.
+
+Next step is based on created the Generalized Linear Model, by adding all the models and creating a new model that theoretically will perform better.
+
+```{r ensamble_finalModel}
+# Ensemble the predictions of 'models' to form a new combined prediction based on glm
+stack.glm = caretStack(models, method="glm")
+print(stack.glm)
+```
+
+```{r ensamble_testData,warning=FALSE}
+# Predict on testData
+har_predicteds = predict(stack.glm, newdata=testData)
+table(har_predicteds)
+```
+
+```{r}
+# Compute the confusion matrix
+har_predicteds <- factor(har_predicteds, levels = levels(testData$Heart_Attack_Risk))
+
+confusionMatrix(reference = testData$Heart_Attack_Risk,
+                data = har_predicteds, 
+                mode = 'everything', positive = "1")
+```
+
+## EXTRA: What will happend if we choose a non-categorical variable?
+
+The structure of the problem remains the same. We must choose a variable that ensure these conditions, see which variables are most relevant to the problem at hand, apply different models and see which one is working better.
+
+For this exercise we are going to choose *Cholesterol* parameter, which is a continuous variable.
+
+### 1. Select predictors
+
+The idea is to find which variables have a huge impact on predicting the *Cholesterol* variable.
+
+```{r extra_cholesterol}
+fit_cholesterol<-lm(Cholesterol~.,data = df)
+summary(fit_cholesterol)
+```
+
+We can conclude that there are two variables which highly affect when predicting the Cholesterol value of a patient:
+
+-   Smoking
+-   Stress_Level
+
+Furthermore, we can noticed how variables such as *Age*, *Exercise_Hours_Per_Week*, *Sedentary_Hours_Per_Day* and *Heart_Attack_Risk* have also some influence on the *Cholesterol* variable. However for simplicity we are just going to work with the two most influence features.
+
+### 2. Models and Interpretations
+
+#### Regression tree
+
+First, we are going to use a regression tree to predict *Cholesterol* using the predictors *Smoking* and *Stress_Leve*. To do this, we generate a training sample and a test sample with the data we have (same steps as before).
+
+```{r extra_treeRegresion, message=FALSE, echo=FALSE}
+library(tree)
+tree_Cholesterol <- tree(Cholesterol~Smoking+Stress_Level,data=trainData,control=tree.control(nobs=nrow(trainData),mincut=5,minsize=10))
+summary(tree_Cholesterol)
+tree_Cholesterol
+# The following lines can't be done because of lack of correlation between the data
+#plot(tree_Cholesterol)
+#text(tree_Cholesterol,pretty=0)
+```
+
+There is not enough relationship between the data so it only makes one node. Thus, we can create the plot and indeed it is not a good model choice.
+
+#### Boosting
+
+For performing this technique, we must set up some options in order to work.
+
+1. `distribution` must be `Gaussian`. 
+
+2. `n.trees` is the number of trees to use, which by default is $100$. 
+
+3. `interaction.depth` is the depth of each tree, which defaults to $4$. 
+
+4. `shrinkage` is the $lambda$ parameter, which defaults to $0.1$. 
+
+5. `bag.fraction` indicates the number of observations used to construct the trees in the algorithm, which defaults to $0.5$.
+
+The summary function provides a measure of the relative influence of each predictor. We can also obtain a graph with the values of these influences, although with two predictors it is not very useful.
+
+```{r,message=FALSE}
+library(gbm)
+boost.ch <- gbm(Cholesterol~Stress_Level+Smoking,data=trainData,
+                     distribution="gaussian",n.trees=100,interaction.depth=4,
+                shrinkage=0.1,bag.fraction=0.5)
+summary(boost.ch)
+```
+
+```{r}
+plot(boost.ch,i="Stress_Level")
+plot(boost.ch,i="Smoking")
+```
+
+Here, we show two plots of the marginal effect of each of the predictor. This is getting by removinng the effect of the other predictor.
+
+
+```{r,message=FALSE}
+pred_ch_Test_stress_smoking <- predict(boost.ch,newdata=testData[,c(5,10)],
+                                           n.trees=100)
+ECMT_bo <- mean((testData$Cholesterol-pred_ch_Test_stress_smoking)^2)
+ECMT_bo
+testData$Pred.Cholesterol<- pred_ch_Test_stress_smoking
+ggplot(testData,aes(x=Cholesterol,y=Pred.Cholesterol)) + 
+  theme_light(base_size=8) +
+  geom_point(size=1,color="blue") + 
+  labs(x="Cholesterol",y="Predicciones")
+```
+
+Finally, we have carried out the prediction of the test sample observations. The ECM test with this tree turns out to be $0.08347973$.
+
+#### K- means clustering
+
+Let's consider a different problem. We want to discover behavior patterns between two different variables in order to classify our patients in groups. This technique belongs to unsupervised classification and it is called clustering. Particularly, k-means clustering finds $k$ groups and approximate the observations to the nearest k-mean.
+
+For drawing clusters in a bi dimensional space, we are going to choose two variables ($p=2$: Cholesterol and Exercise Hours per week) and two populations ($K=2$: Heart_Attack_risk ($0$ if not and $1$ if there is risk)).
+
+
+```{r}
+n <- 100
+p <- 2
+set.seed(33)
+
+# We split the two variables into the two different populations
+df_cluster<-df[,c(2,8,15)]
+df_cluster_0 <- df_cluster[df_cluster$Heart_Attack_Risk == 0, c(1,2)]
+df_cluster_1 <- df_cluster[df_cluster$Heart_Attack_Risk == 1, c(1,2)]
+df_cluster_0<-as.matrix(df_cluster_0) #1:5624
+df_cluster_1<-as.matrix(df_cluster_1) #1:3139
+# We make two samples because the size is too big to appreciate the results
+df_cluster_0 <- df_cluster_0[sample(1:nrow(df_cluster_0), 50), ]
+df_cluster_1 <- df_cluster_1[sample(1:nrow(df_cluster_1), 50), ]
+
+X <- matrix(NA,nrow=n,ncol=p)
+X[1:50,]<-df_cluster_0
+X[51:100,]<-df_cluster_1
+```
+
+
+We make a graph of the data set where we see the two groups generated and where we can see that mostly of the observations are mixed between groups.  
+
+```{r}
+par(mfrow=c(1,2))
+color_1 <- "green" # no risk
+color_2 <- "red" # risk 
+colors_X <- rep("deepskyblue2",n)
+plot(X[,1],X[,2],pch=19,col=colors_X,
+     xlim=c(range(X[,1])[1]-0.1,range(X[,1])[2]+0.1),
+     ylim=c(range(X[,2])[1]-0.1,range(X[,2])[2]+0.1),
+     main="¿How many clusters?",
+     xlab="Cholesterol",ylab="Exercise Hours per week")
+colors_X <- c(rep(color_1,50),rep(color_2,50))
+plot(X[,1],X[,2],pch=19,col=colors_X,
+     xlim=c(range(X[,1])[1]-0.1,range(X[,1])[2]+0.1),
+     ylim=c(range(X[,2])[1]-0.1,range(X[,2])[2]+0.1),
+     main="Two clusters generated",
+     xlab="Cholesterol",ylab="Exercise Hours per week")
+```
+
+
+We are going to use the function `kmeans` to select how many clusters $K$ are neccesary with the average silhouette. Furthermore, we can see the silhouette obtained for all observations in the data set with the function `silhouette`:
+
+```{r,message=FALSE}
+library("factoextra")
+par(mfrow=c(1,1))
+fviz_nbclust(X,kmeans,method="silhouette",k.max=10)
+X_kmeans <- kmeans(X,centers=3,nstart=1000) # k=3
+X_kmeans$cluster
+X_kmeans$centers
+library(cluster)
+sil_X_kmeans <- silhouette(X_kmeans$cluster,
+                           dist(X,method="euclidean"))
+plot(sil_X_kmeans,col="deepskyblue2",
+     main="Silhouette plot")
+```
+
+So, we draw the clusters obtained by k-means and compare it to the true partition. For that we need the library `pracma`:
+
+```{r}
+color_1 <- "deepskyblue2"
+color_2 <- "darkorchid2"
+color_3 <- "seagreen2"
+library(pracma)
+cl_current <- X_kmeans$cluster
+cl_current
+par(mfrow=c(1,2))
+run_step <- 1
+while (run_step==1){
+  C1_center <- colMeans(X[cl_current==1,])
+  C2_center <- colMeans(X[cl_current==2,])
+  C3_center <- colMeans(X[cl_current==3,])
+  colors_X <- c(color_1,color_2,color_3)[cl_current]
+  plot(X[,1],X[,2],pch=19,col=colors_X,
+       main="Solution K-Means", 
+       xlab="Cholestherol",ylab="Exercise Hours per week")
+  points(C1_center[1],C1_center[2],pch=15,col=color_1,cex=2)
+  points(C2_center[1],C2_center[2],pch=15,col=color_2,cex=2)
+  points(C3_center[1],C3_center[2],pch=15,col=color_3,cex=2)
+  d_1 <- distmat(X,C1_center)
+  d_2 <- distmat(X,C2_center)
+  d_3 <- distmat(X,C3_center)
+  distances <- cbind(d_1,d_2,d_3)
+  cl_new <- apply(distances,1,which.min)
+  cl_new
+  cl_equal <- sum(cl_current == cl_new)
+  if (cl_equal==100){
+    run_step <- 0
+  } else {
+    cl_current <- cl_new
+  }
+}
+
+# True partition
+color_1 <- "green" # no risk
+color_2 <- "red" # risk 
+colors_X <- c(rep(color_1,50),rep(color_2,50))
+plot(X[,1],X[,2],pch=19,col=colors_X,
+     xlim=c(range(X[,1])[1]-0.1,range(X[,1])[2]+0.1),
+     ylim=c(range(X[,2])[1]-0.1,range(X[,2])[2]+0.1),
+     main="True partition"
+     ,xlab="Cholesterol",ylab="Exercise Hours per week")
+```
+
+In conclusion, algorithm clustering k-means is not useful for this two variables and two populations due to data does not follow any pattern. Moreover, k-means gives us $3$ clusters when there are only two different populations known.
+
+# Final conclusion
+
+It is important to highlight the relevance of the dataset in our project. The quality of the data we work with influences our ability to gain insights and develop effective models.
+In our particular case, the dataset was synthetically generated through artificial intelligence. This may account for some of the challenges we encountered during the project, including the difficulty in arriving at definitive conclusions and achieving good results with our machine learning models.The synthetically data has cause a limited correlation between variables which add complexity to our task of creating predictive models for specific features. Nonetheless, throughout the course of this project, we explored various machine learning models and gained valuable insights into their performance.
